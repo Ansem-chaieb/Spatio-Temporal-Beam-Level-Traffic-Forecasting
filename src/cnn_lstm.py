@@ -1,21 +1,31 @@
+import sys
+import os
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
+
 import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Conv1D, BatchNormalization, SpatialDropout1D, Flatten, LSTM, Bidirectional, Concatenate, Dense, Dropout
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-import numpy as np
+import pandas as pd
 
+import src.config.data_config as dc
+import src.config.model_config as mc
+
+
+
+        
 class CNNLSTM:
-    def __init__(self, input_shape = (0,0), learning_rate=0.001):
-        self.input_shape = input_shape
+    def __init__(self,  learning_rate=0.001):
         self.learning_rate = learning_rate
         self.model = None
         self.history = None
 
     def build_model(self):
-        input_layer = Input(shape=self.input_shape)
-
+        input_layer = Input(shape=(self.x_train.shape[1], self.x_train.shape[2]))
+        
         # CNN layers
         cnn_layer = self._build_cnn_layers(input_layer)
 
@@ -53,7 +63,7 @@ class CNNLSTM:
     def _build_dense_layers(self, input_layer):
         dense = Dense(128, activation='relu', kernel_regularizer=l2(0.001))(input_layer)
         dense = Dropout(0.5)(dense)
-        dense = Dense(64, activation='relu', kernel_regularizer=l2(0.001))(dense)
+        dense = Dense(64, activation='relu', kernel_regularizer=l2(0.001))(input_layer)
         return Dropout(0.5)(dense)
 
     def compile_model(self):
@@ -61,13 +71,13 @@ class CNNLSTM:
         self.model.compile(optimizer=optimizer, loss='mae')
 
     def prepare_data(self, train_set, val_set, features, target, batch_size=32):
-        x_train, y_train = self._prepare_dataset(train_set, features, target)
-        x_val, y_val = self._prepare_dataset(val_set, features, target)
+        self.x_train, self.y_train = self._prepare_dataset(train_set, features, target)
+        self.x_val, self.y_val = self._prepare_dataset(val_set, features, target)
 
-        train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+        train_dataset = tf.data.Dataset.from_tensor_slices((self.x_train, self.y_train))
         train_dataset = train_dataset.cache().shuffle(buffer_size=1024).batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
-        val_dataset = tf.data.Dataset.from_tensor_slices((x_val, y_val))
+        val_dataset = tf.data.Dataset.from_tensor_slices((self.x_val, self.y_val))
         val_dataset = val_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
         return train_dataset, val_dataset
@@ -88,7 +98,7 @@ class CNNLSTM:
         x = x.reshape((x.shape[0], x.shape[1], 1))
         return x, y
 
-    def train(self, train_dataset, val_dataset, epochs=50, patience=10):
+    def train(self, train_dataset, val_dataset, epochs=5, patience=10):
         callbacks = [
             EarlyStopping(patience=patience, restore_best_weights=True),
             ReduceLROnPlateau(factor=0.5, patience=patience // 2, min_lr=1e-6)

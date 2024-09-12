@@ -2,3 +2,8 @@ src/__pycache__
 src/.ipynb_checkpoints
 src/config/__pycache__/data_config.cpython-38.pyc
 src/config/__pycache__/__init__.cpython-38.pyc
+
+
+data/*
+src/config/__pycache__/model_config.cpython-38.pyc
+CHANGELOG.md

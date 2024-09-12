@@ -6,6 +6,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from typing import List, Dict
 import pandas as pd
 from pathlib import Path
+from icecream import ic
 
 import src.config.data_config as dc
 
@@ -24,27 +25,24 @@ class EnergyDataset:
 
     def process_trainset(self):
         for key, df in self.data.items():
-            column_name = dc.COLUMNS[key.upper()]
+            column_name = dc.COLUMNS[key]
             self.data[key] = self._melt_and_add_hour(
                 df, dc.COLUMNS["GNODEB_CELL_BEAM"], column_name
             )
             self.data[key] = self._split_gnodeb_cell_beam(self.data[key])
-
-        self.train_set = pd.concat(
-            [
-                df[df.columns.difference(dc.CATEGORICAL_FEATURES)]
-                for df in self.data.values()
-            ],
-            axis=1,
-        )
-
+      
+        self.train_set = pd.concat([self.data['DLPRB'],self.data['DLThptime']['DLThptime']],axis = 1)
+        self.train_set = pd.concat([self.train_set,self.data['DLThpvol']['DLThpvol']],axis = 1)
+        self.train_set = pd.concat([self.train_set,self.data['MR_number']['MR_number']],axis = 1)
+      
         columns_to_keep = (
             [dc.COLUMNS["GNODEB_CELL_BEAM"]]
             + dc.CATEGORICAL_FEATURES
+            + [dc.COLUMNS['HOUR']]
             + dc.NUMERICAL_FEATURES
         )
         self.train_set = self.train_set[columns_to_keep]
-
+        
         rows_per_week = 168 * 30 * 3 * 32
         self.train_set[dc.COLUMNS["WEEK"]] = (self.train_set.index // rows_per_week) + 1
 
@@ -67,6 +65,10 @@ class EnergyDataset:
         self.test_set.loc[len(test_ids) // 2 :, dc.COLUMNS["WEEK"]] = 11
 
     def get_fulldata(self) -> pd.DataFrame:
+        ic(self.train_set.columns)
+        ic(self.train_set)
+        ic(self.test_set.columns)
+        ic(self.test_set)
         return pd.concat([self.train_set, self.test_set], axis=0)
 
     @staticmethod
@@ -90,3 +92,5 @@ class EnergyDataset:
     def _create_id(row: pd.Series) -> str:
         week_range = "5w-6w" if row[dc.COLUMNS["HOUR"]] < 168 * 10 else "10w-11w"
         return f"traffic_DLThpVol_test_{week_range}_{row[dc.COLUMNS['HOUR']]}_{row[dc.COLUMNS['GNODEB']]}_{row[dc.COLUMNS['CELL']]}_{row[dc.COLUMNS['BEAM']]}"
+
+

@@ -1,4 +1,5 @@
 import argparse
+from sqlite3 import complete_statement
 from energy_data import prepare_data
 from train import train_model
 from inference import run_inference
@@ -14,6 +15,16 @@ def main():
         train_model()
     elif args.phase == 'inference':
         run_inference()
+        
+// NOTE: target understnading, metric debugging 
+// TODO: cnn_lstm model understanding, debugging 
+// TODO: implement transformers 
 
+// TODO: feature engineer 
+
+// TODO: Model monitoring using comet 
+// TODO: GPU usage with tensorflow
+
+    
 if __name__ == '__main__':
     main()

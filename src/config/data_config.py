@@ -2,7 +2,8 @@ from typing import Dict, List
 from pathlib import Path
 
 # Data paths
-DATA_PATH: Path = Path("./data")
+DATA_PATH: Path = Path("./data/raw")
+PROCESSED_DATA_PATH: Path = Path("./data/processed")
 
 DATA_FILES: Dict[str, str] = {
     "DLPRB": "traffic_DLPRB.csv",
@@ -29,7 +30,7 @@ COLUMNS: Dict[str, str] = {
 }
 
 # Feature sets
-CATEGORICAL_FEATURES: List[str] = [COLUMNS["GNODEB"], COLUMNS["CELL"], COLUMNS["BEAM"]]
+CATEGORICAL_FEATURES: List[str] = [COLUMNS["GNODEB"],COLUMNS["CELL"], COLUMNS["BEAM"]]
 NUMERICAL_FEATURES: List[str] = [
     COLUMNS["DLPRB"],
     COLUMNS["DLThptime"],
