@@ -5,6 +5,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 from typing import List, Dict
 import pandas as pd
+import numpy as np
 from pathlib import Path
 from icecream import ic
 
@@ -23,46 +24,52 @@ class EnergyDataset:
             full_path = self.data_path / file_name
             self.data[key] = pd.read_csv(full_path).drop("Unnamed: 0", axis=1)
 
-    def process_trainset(self):
-        for key, df in self.data.items():
-            column_name = dc.COLUMNS[key]
-            self.data[key] = self._melt_and_add_hour(
-                df, dc.COLUMNS["GNODEB_CELL_BEAM"], column_name
-            )
-            self.data[key] = self._split_gnodeb_cell_beam(self.data[key])
-      
-        self.train_set = pd.concat([self.data['DLPRB'],self.data['DLThptime']['DLThptime']],axis = 1)
-        self.train_set = pd.concat([self.train_set,self.data['DLThpvol']['DLThpvol']],axis = 1)
-        self.train_set = pd.concat([self.train_set,self.data['MR_number']['MR_number']],axis = 1)
-      
-        columns_to_keep = (
-            [dc.COLUMNS["GNODEB_CELL_BEAM"]]
-            + dc.CATEGORICAL_FEATURES
-            + [dc.COLUMNS['HOUR']]
-            + dc.NUMERICAL_FEATURES
-        )
-        self.train_set = self.train_set[columns_to_keep]
+    def process_trainset(self, second_approach = False):
+        if second_approach:
+            self.train_set = self.make_dummies(len(self.data['DLThpvol']) )
+        else: 
+            for key, df in self.data.items():
+                column_name = dc.COLUMNS[key]
+                self.data[key] = self._melt_and_add_hour(
+                    df, dc.COLUMNS["GNODEB_CELL_BEAM"], column_name
+                )
+                self.data[key] = self._split_gnodeb_cell_beam(self.data[key])
         
-        rows_per_week = 168 * 30 * 3 * 32
-        self.train_set[dc.COLUMNS["WEEK"]] = (self.train_set.index // rows_per_week) + 1
+            self.train_set = pd.concat([self.data['DLPRB'],self.data['DLThptime']['DLThptime']],axis = 1)
+            self.train_set = pd.concat([self.train_set,self.data['DLThpvol']['DLThpvol']],axis = 1)
+            self.train_set = pd.concat([self.train_set,self.data['MR_number']['MR_number']],axis = 1)
+        
+            columns_to_keep = (
+                [dc.COLUMNS["GNODEB_CELL_BEAM"]]
+                + dc.CATEGORICAL_FEATURES
+                + [dc.COLUMNS['HOUR']]
+                + dc.NUMERICAL_FEATURES
+            )
+            self.train_set = self.train_set[columns_to_keep]
+            
+            rows_per_week = 168 * 30 * 3 * 32
+            self.train_set[dc.COLUMNS["WEEK"]] = (self.train_set.index // rows_per_week) + 1
 
-    def process_testset(self):
-        test_hours = list(range(168 * 5, 168 * 6)) + list(range(168 * 10, 168 * 11))
-        test_ids = [
-            (hour, gnodeb, cell, beam)
-            for hour in test_hours
-            for gnodeb in range(30)
-            for cell in range(3)
-            for beam in range(32)
-        ]
+    def process_testset(self, second_approach = False):
+        if second_approach:
+            self.train_set  = self.make_dummies(len(self.data['DLThpvol']) + 1008 ).iloc [ len(self.data['DLThpvol']): ]
+        else:
+            test_hours = list(range(168 * 5, 168 * 6)) + list(range(168 * 10, 168 * 11))
+            test_ids = [
+                (hour, gnodeb, cell, beam)
+                for hour in test_hours
+                for gnodeb in range(30)
+                for cell in range(3)
+                for beam in range(32)
+            ]
 
-        self.test_set = pd.DataFrame(
-            test_ids, columns=[dc.COLUMNS["HOUR"]] + dc.CATEGORICAL_FEATURES
-        )
-        self.test_set[dc.COLUMNS["ID"]] = self.test_set.apply(self._create_id, axis=1)
-        self.test_set[dc.COLUMNS["HOUR"]] = self.test_set[dc.COLUMNS["HOUR"]] % 168
-        self.test_set[dc.COLUMNS["WEEK"]] = 6
-        self.test_set.loc[len(test_ids) // 2 :, dc.COLUMNS["WEEK"]] = 11
+            self.test_set = pd.DataFrame(
+                test_ids, columns=[dc.COLUMNS["HOUR"]] + dc.CATEGORICAL_FEATURES
+            )
+            self.test_set[dc.COLUMNS["ID"]] = self.test_set.apply(self._create_id, axis=1)
+            self.test_set[dc.COLUMNS["HOUR"]] = self.test_set[dc.COLUMNS["HOUR"]] % 168
+            self.test_set[dc.COLUMNS["WEEK"]] = 6
+            self.test_set.loc[len(test_ids) // 2 :, dc.COLUMNS["WEEK"]] = 11
 
     def get_fulldata(self) -> pd.DataFrame:
         ic(self.train_set.columns)
@@ -70,6 +77,18 @@ class EnergyDataset:
         ic(self.test_set.columns)
         ic(self.test_set)
         return pd.concat([self.train_set, self.test_set], axis=0)
+
+    @staticmethod
+    def _make_dummies ( self, n ) :
+        i  = np.arange ( n, dtype = int )
+        df = pd.DataFrame ( index = i )
+        # Hour
+        for j in range ( 24 - 1 ) :
+            df [ f"h{ j }" ] = 1.0 * ( ( i % 24 ) == j )
+        # Week
+        for j in range ( 7 - 1 ) :
+            df [ f"w{ j }" ] = 1.0 * ( ( ( i // 24 ) % 7 ) == j )
+        return df
 
     @staticmethod
     def _melt_and_add_hour(

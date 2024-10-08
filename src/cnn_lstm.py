@@ -26,19 +26,11 @@ class CNNLSTM:
     def build_model(self):
         input_layer = Input(shape=(self.x_train.shape[1], self.x_train.shape[2]))
         
-        # CNN layers
+    
         cnn_layer = self._build_cnn_layers(input_layer)
-
-        # LSTM layers
         lstm_layer = self._build_lstm_layers(input_layer)
-
-        # Combine CNN and LSTM
         combined = Concatenate()([cnn_layer, lstm_layer])
-
-        # Dense layers
         dense_layer = self._build_dense_layers(combined)
-
-        # Output layer
         output_layer = Dense(1, dtype='float32')(dense_layer)
 
         self.model = Model(inputs=input_layer, outputs=output_layer)
@@ -71,15 +63,20 @@ class CNNLSTM:
         self.model.compile(optimizer=optimizer, loss='mae')
 
     def prepare_data(self, train_set, val_set, features, target, batch_size=32):
-        self.x_train, self.y_train = self._prepare_dataset(train_set, features, target)
-        self.x_val, self.y_val = self._prepare_dataset(val_set, features, target)
-
+        if dc.SECOND_APPROACH:
+            self.x_train  = train_set.values
+            self.y_train = target.values
+            self.x_train = self.x_train.reshape((self.x_train.shape[0], self.x_train.shape[1], 1))
+        else:
+            self.x_train, self.y_train = self._prepare_dataset(train_set, features, target)
         train_dataset = tf.data.Dataset.from_tensor_slices((self.x_train, self.y_train))
         train_dataset = train_dataset.cache().shuffle(buffer_size=1024).batch(batch_size).prefetch(tf.data.AUTOTUNE)
-
-        val_dataset = tf.data.Dataset.from_tensor_slices((self.x_val, self.y_val))
-        val_dataset = val_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
-
+        if val_set is not None:
+            self.x_val, self.y_val = self._prepare_dataset(val_set, features, target)
+            val_dataset = tf.data.Dataset.from_tensor_slices((self.x_val, self.y_val))
+            val_dataset = val_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        else:
+            val_dataset = None
         return train_dataset, val_dataset
     
     def prepare_test_data(self,test_set, features, batch_size=32):
@@ -103,14 +100,16 @@ class CNNLSTM:
             EarlyStopping(patience=patience, restore_best_weights=True),
             ReduceLROnPlateau(factor=0.5, patience=patience // 2, min_lr=1e-6)
         ]
-
-        self.history = self.model.fit(
-            train_dataset,
-            epochs=epochs,
-            validation_data=val_dataset,
-            callbacks=callbacks
-        )
-
+        if val_dataset is not None:
+            self.history = self.model.fit(
+                train_dataset,
+                epochs=epochs,
+                validation_data=val_dataset,
+                callbacks=callbacks
+            )
+        else:
+             self.model.fit(train_dataset, epochs=self.epochs)
+                  
     def evaluate(self, test_dataset):
         return self.model.evaluate(test_dataset)
 
